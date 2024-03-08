@@ -1,49 +1,48 @@
-= Developer-centric SQL Migrations
+= Developer-Centric SQL Migrations
 :toc:
 
-Bei vielen Arten von Migrationsprojekten steht man vor der Herausforderung der Datenmigration.
-In diesem Artikel wird gezeigt, wie jOOQ dabei unterstützen kann, sowohl Änderungen am Source Schema als auch am Target Schema zu erkennen, (gewisse) Fehler durch Automatisierung zu vermeiden und Änderungen aufgrund von Compile-Time-Safety zu verifizieren.
+IT-Modernisierungsprojekte enthalten oft die Herausforderung, über die Jahre umfangreich gewachsene Bestandsdaten in die Zielarchitektur zu migrieren. Dieser Artikel zeigt wie jOOQ dabei unterstützen kann, sowohl Änderungen am Source- als auch am Target-Schema zu erkennen, einige Fehler durch Automatisierung zu vermeiden und Änderungen durch Typsicherheit zur Compile-Zeit verifizieren zu können.
 
 == Ausgangssituation
 
-Die hier beschriebene Situation haben wir schon in ähnlicher Art in einigen Migrationsprojekten erlebt.
-Das Quellsystem war eine Oracle Datenbank, das Zielsystem eine PostgreSQL Datenbank.
-Dabei wurde die Oracle Datenbank im Wesentlichen als Datensenke betrachtet und enthielt keine Geschäftslogik.
+Die hier beschriebene Situation erlebten wir in ähnlicher Form bereits in einigen Migrationsprojekten.
+Das Quellsystem ist eine Oracle-Datenbank, das Zielsystem eine PostgreSQL-Datenbank.
+Dabei wurde die Oracle Datenbank bisher im Wesentlichen als Datensenke betrachtet und enthält keine Geschäftslogik.
 
-Die Datenbank wurde mittels ora2pg in ein PostgreSQL "Staging" Schema migriert.
-Das Schema halten wir in der gleichen Datenbank, wie das spätere Zielschema.
+Die Datenbank wurde mittels `ora2pg` in ein Schema "Staging" in PostgreSQL migriert.
+Dieses Schema halten wir dabei in derselben Datenbank wie das spätere Zielschema.
 
-Das haben wir gemacht, damit wir einfache SQL Abfragen zur Migration nutzen können.
-Es kann aber auch sinnvoll sein, das Staging Schema in einer eigenen Datenbank, bzw.
+Wir wählen diesen Ansatz, damit wir einfache SQL Abfragen zur Migration nutzen können.
+Alternativ kann es sinnvoll sein, das Staging-Schema in einer eigenen Datenbank, bzw.
 Datenbankcluster zu halten, um die Datenbanken zu entkoppeln.
-Dann kann mann Postgres Foreign Data Wrapper nutzen, um genauso einfach auf die Daten zuzugreifen.
-Dies ist sinnvoll, da bei vielen Cloudanbietern, der einmal zugewiesene Speicher nicht wieder einfach freigegeben werden kann.
-Liegt das Staging Schema in einem eigenen Datnbankcluster, so kann der gesamte Server einfach gelöscht werden.
+Wir nutzen Postgres Foreign Data Wrapper, um genauso einfach auf die Daten zuzugreifen.
+Dies erscheint sinnvoll, denn bei vielen Cloudanbietern kann der einmal zugewiesene Speicher nicht wieder einfach freigegeben werden.
+Liegt das Staging-Schema in einem eigenen Datnbankcluster, kann der gesamte Server einfach gelöscht werden.
 
 Wir halten es für sinnvoll möglichst frühzeitig mit der Entwicklung der Migrationsskripte zu beginnen.
-Häufig stellt man fest, dass die Altdaten Konstellationen enthalten, die man in Zukunft nicht mehr zulassen möchte.
+Häufig stellen wir fest, dass die Altdaten Konstellationen enthalten, die man im zukünftigen Schema nicht mehr zulassen möchte.
 Dann stellt sich die Frage, wie mit den Altdaten umgegangen werden soll.
 
-Gleichzeitig findet aber die Migration oder Neuimplementierung der Anwendung statt.
-Die Migration als Treiber sorgt für einen Datenbank-First Ansatz.
-Ebenfalls hilfreich ist es, dass man mit den Altdaten arbeiten kann.
-Dies liefert eine realistische Datenmenge, denn leere Datenbanken sind immer schnell.
-Das Thema Nutzung von Produktionsdaten zu Testzwecken ist aber ein anderes Thema.
+Migration und Re-Implementierung der Anwendung finden gleichzeitig statt. 
+Dieser Umstand erweist sich als Glücksfall, denn die Migration sorgt so als Treiber für einen "Datenbank-First"-Ansatz. 
+Für die Re-Implementierung ist hilfreich , dass wir bereits mit den Altdaten arbeiten.
+Dies liefert eine realistische Datenmenge, denn Abfragen auf leeren Tabellen sind stets schnell.
+Die Nutzung von Produktionsdaten zu Testzwecken ist dagegen ein anderes Thema.
 
-Wenn sich aber das Zielschema noch ändert, so müssen die Migrationsskripte angepasst werden.
-Migrationsskripte sind aber von den Liquibase oder Flyway Skripten getrennt.
+Immer wenn sich das Zielschema ändert, müssen die Migrationsskripte angepasst werden.
+Die Migrationsskripte selbst sind von den Liquibase oder Flyway-Skripten getrennt.
 
 == Was gehört zu einer performanten Migration?
 
 Es gibt verschiedene Arten von Migrationen.
-In der Regel ist es sinnvoll bei IT Systemen eine inkrementelle Migrationsstrategie zu verfolgen.
-Das kann trotzdem bedeuten, dass Teile des IT-Systems jeweils in einem Schritt migriert werden (Big Bang).
-Dann ist häufig eine performante Migration der Daten wichtig.
+In der Regel ist es sinnvoll bei IT-Systemen eine inkrementelle Migrationsstrategie zu verfolgen.
+Das kann bedeuten, dass Teile des IT-Systems jeweils in einem Schritt migriert werden (Big Bang).
+Eine performante Migration der Daten ist dann wichtig.
 
-Beim Bulk load von Daten in eine Postgres Datenbank oder zwischen Tabellen gibt es dazu einiges zu beachten.
+Beim Bulk-Load von Daten in eine PostgreSQL-Datenbank oder zwischen Tabellen gibt es einiges zu beachten.
 Ähnliches gilt auch für andere Datenbanken.
 
-Angelehnt an die Liste von https://www.enterprisedb.com/blog/7-best-practice-tips-postgresql-bulk-data-loading[EDB] sind folgende Punkte wichtig für unser Szenario (Postgres -> Postgres mittels SQL):
+Angelehnt an die Liste von https://www.enterprisedb.com/blog/7-best-practice-tips-postgresql-bulk-data-loading[EDB] sind folgende Punkte wichtig für unser Szenario (PostgreSQL -> PostgreSQL mittels SQL):
 
 * Tabellen in die Migriert werden sollen, sollten vorher leer sein.
 * Tabellen sollten "unlogged" sein.
@@ -56,34 +55,35 @@ Dann werden die Daten mittels SQL Skripten geladen.
 Und dann werden die Indizes, Constraints, Triggers und Foreign Keys wiederhergestellt.
 Zum Abschluss sollte ein Analyze ausgeführt werden.
 
-== Was ist die Herausforderung bei gleichzeitiger Entwicklungstätigkeiten?
+== Was ist die Herausforderung bei gleichzeitigen Entwicklungstätigkeiten?
 
 Wird die Anwendung neu entwickelt, so ändert sich das Zielschema.
 Dabei sind insbesondere die Änderungen an den Zieltabellen interessant.
 
 * Neue Indizes
 * Neue Constraints (inklusive Foreign Keys)
-* Neue Triggers
+* Neue Trigger
 * Umbenennungen von Spalten
-* Neue Not Null Spalten
+* Neue Not-Null Spalten
 
 Es ist wichtig, dass diese Änderungen entweder automatisch erkannt und berücksichtigt werden oder vor Ausführung der Skripte auffallen.
-Da die Laufzeiten für die Migrationen sehr lang sein können (Stunden bis Tage), ist es wichtig, dass die Migrationsskripte möglichst fehlerfrei sind.
-Ansonsten ärgert man sich über einfache Fehler, die früher hätten erkannt werden können und weil die Probemigration nicht abgeschlossen werden konnte.
+Da die Laufzeiten für die Migrationen sehr lang sein können (Stunden bis Tage), müssen einfach Fehler vorab oder früh erkannt werden können. 
+Sonst kann die (unbeobachtete) Probemigration erst nach vielen Stunden fehlschlagen und wird nicht abgeschlossen.
+Damit sind viele Stunden wertvoller Projektzeit verschwendet.
 
 == Wie kann jOOQ helfen?
 
-jOOQ generiert aus einem Datenbankschema Klassenmodell.
-Dies beinhaltet Informationen über die gängigen Datenbankobjekte wie Tabellen, Spalten, Indizes, Constraints, Triggers und Foreign Keys.
+jOOQ generiert aus einem Datenbankschema ein Klassenmodell.
+Dieses beinhaltet Informationen über die gängigen Datenbankobjekte wie Tabellen, Spalten, Indizes, Constraints, Triggers und Foreign Keys.
 Mittels dieses Klassenmodells kann man dann einfach alle Indizes oder Constraints einer Tabelle entfernen oder neu erzeugen.
 Wenn wir dabei alle Tabellen mittels eines https://en.wikipedia.org/wiki/Topological_sorting[topologischen Sortieralgorithmus] sortieren, dann können wir die Tabellen in der richtigen Reihenfolge behandeln.
-Dies gilt für diesen Blog Post zumindest solange der "Tabellengraph" keine Zyklen enthält.
+Dies gilt im Kontext dieses Blog-Post zumindest solange, wie der "Tabellengraph" keine Zyklen enthält.
 Damit vergessen wir keine Objekte zu löschen oder zu erzeugen, die im Rahmen der Weiterentwicklung noch entstehen oder gelöscht werden.
 Statt die Änderungen direkt anzuwenden, können wir uns das SQL ausgeben lassen und einsammeln.
 Im Beispiel gibt es aktuell keinen Schalter, die Skripte auch direkt gegen die Datenbank auszuführen.
-Generell sollten die Aktionen nicht vom "Entwicklerlaptop" ausgeführt werden, sondern von einem anderen System.
-Wenn man die Migration manuell startet, sollte man darauf achten, dass dies unter einem terminal multiplexer wie tmux oder screen geschieht, damit die Verbindung zur Datenbank nicht abbricht.
-Die Migrationsdauer hängt dabei stark von der Größe der Datenbank ab.
+Generell sollten die Aktionen nicht vom Notebook eines Entwicklers ausgeführt werden, sondern von einem dedizierten Migrations-System (virtuelle Maschine).
+Wenn man die Migration manuell startet, sollte man darauf achten, dass dies unter einem Terminal-Multiplexer wie `tmux` oder `screen` geschieht, damit die Ausführung nicht abbricht, wenn der ausführende Benutzer die Verbindung beendet.
+Die Dauer der Migration hängt stark von der Größe der Datenbank ab.
 Selbst für einige kleine Datenbanken mit < 250 Mio Einträgen und mehreren Tabellen kann die Migration mehrere Stunden dauern.
 Bei größeren Migrationen ist sicherlich nochmal eine gesonderte Betrachtung notwendig, um Laufzeiten zu optimieren.
 
@@ -94,21 +94,21 @@ Eine etwas ausführlichere Dokumentation findet sich auf den zugehörigen https:
 
 === Datenbank aufsetzen
 
-Die Postgres Datenbank kann mittels Docker Compose aufgesetzt werden.
+Die PostgreSQL Datenbank kann mittels Docker Compose aufgesetzt werden.
 
 [source,bash]
 ----
 docker compose up -d
 ----
 
-Verbinden kann man sich mittels des Nutzers jooq_demo_admin und dem Passwort jooq_demo_admin.
+Verbinden kann man sich mittels des Nutzers `jooq_demo_admin` und dem Passwort `jooq_demo_admin`.
 Dieser Nutzer hat die notwendigen Rechte auf der Datenbank und den Schemas.
 Es gibt die folgenden Schemas:
 
 jooq_demo::
 Das Zielschema, welches später von der Anwendung genutzt werden soll
 staging::
-Das Staging Schema, welches aus der Oracle Datenbank migriert wurde
+Das Staging-Schema, welches aus der Oracle Datenbank migriert wurde
 extensions::
 Das Schema, in dem die Erweiterungen für die Datenbank liegen (z.B. uuid-ossp), welche nicht zu viele eigene Funktionen / Objekte bereitstellen
 
@@ -220,7 +220,7 @@ Wir brauchen aber nur die Skripte schreiben, welche die wirkliche Migration der 
                     .getSQL();
 ----
 
-Dieses Beispiel befindet sich in der Klasse `LibraryMigratio`, welche die Methode `migrateTables`  unserer `FullMigrationSupport` Oberklasse überschreibt.
+Dieses Beispiel befindet sich in der Klasse `LibraryMigration`, welche die Methode `migrateTables` unserer `FullMigrationSupport` Oberklasse überschreibt.
 
 .Überschriebene Methode `migrateTables`
 [source,java]
@@ -243,7 +243,7 @@ Jetzt müssen die Daten mittels der Skripte migriert werden.
 java -jar library-migration/build/libs/library-migration-0.0.1-SNAPSHOT.jar applyScripts
 ----
 
-Das führt einfach die Skripte aus (mittels Springs ScriptUtils Klasse).
+Das führt einfach die Skripte aus (mittels Spring `ScriptUtils` Klasse).
 
 === Zusätzlichen Index erstellen
 
@@ -262,14 +262,14 @@ Das Skript `0010_disable_index.sql` enthält jetzt den Befehl zum Löschen des I
 Es gibt also keine Indexe, die man vergessen kann zu löschen und zu erstellen.
 
 Das ist schon mal sehr hilfreich.
-Was hier passiert ist, dass an ein liquibase Update (mittels `./gradlew :db:update`) den Task `jooqCodegen` triggert.
+Was hier passiert ist, dass an ein Liquibase Update (mittels `./gradlew :db:update`) den Task `jooqCodegen` auslöst.
 Damit wird das jOOQ Klassenmodell aktualisiert.
 
 Wir schauen uns jetzt einmal an, was passiert, wenn wir eine Spalte umbenennen.
 
 === Spalte umbenennen
 
-Wir nennen in der Tabelle `checkout`die Spalte `return_date` in `borrowed_until_date` um.
+Wir nennen in der Tabelle `checkout` die Spalte `return_date` in `borrowed_until_date` um.
 
 [source,bash]
 ----
@@ -297,13 +297,13 @@ Wer noch mehr ausprobieren möchte, der kann das natürlich auch einfach mittels
 
 == Was nicht funktioniert
 
-Wenn man eine neue Not Null Spalte hinzufügt, dann wird das nicht automatisch erkannt, dass in den Abfragen kein Wert für die Spalte bereitgestellt wird.
-Wer die Datenbankdefinition sich genau angesehen hat, wird feststellen, dass ein Postgres spezifisches Exclusion constraint auf der Checkout Tabelle definiert ist.
+Wenn man eine neue Not-Null Spalte hinzufügt, dann wird nicht automatisch erkannt, dass in den Abfragen kein Wert für die Spalte bereitgestellt wird.
+Wer sich die Datenbankdefinition genau angesehen hat, wird feststellen, dass ein PostgreSQL-spezifisches Exclusion Constraint auf der Checkout Tabelle definiert ist.
 Dieses wurde vom Meta-Modell nicht erkannt und auch nicht in den Skripten berücksichtigt.
 Daher ist es immer noch wichtig, sich die generierten Skripte anzuschauen und ggf. zu prüfen und zu ergänzen.
 Gleiches gilt auch, wenn zyklische Abhängigkeiten zwischen Tabellen bestehen.
 
 == Fazit
 
-Auch wenn nicht Änderungen erkannt werden, ist die Nutzung von jOOQ für die Erstellung von Migrationsskripten sehr hilfreich und kann einige Fehlerquellen adressieren, die bei gleichzeitiger Entwicklungstätigkeit auftreten können, wenn also das Zielschema nicht eingefroren ist.
+Auch wenn Änderungen nicht erkannt werden, ist die Nutzung von jOOQ für die Erstellung von Migrationsskripten sehr hilfreich und kann einige Fehlerquellen adressieren, die bei gleichzeitiger Entwicklungstätigkeit auftreten können, wenn das Zielschema nicht eingefroren ist.
 Notwendige Ergänzungen können im Code oder in den generierten Skripten vorgenommen werden.
